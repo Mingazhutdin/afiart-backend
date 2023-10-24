@@ -1,7 +1,7 @@
 # compiled output
 /dist
 /node_modules
-
+.env
 # Logs
 logs
 *.log
@@ -26,7 +26,7 @@ lerna-debug.log*
 *.launch
 .settings/
 *.sublime-workspace
-.env/
+
 # IDE - VSCode
 .vscode/*
 !.vscode/settings.json

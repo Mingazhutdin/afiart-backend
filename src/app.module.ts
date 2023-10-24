@@ -25,3 +25,4 @@ import { mailerModuleConnection } from './config/mailerModuleConnection';
 })
 
 export class AppModule { }
+
