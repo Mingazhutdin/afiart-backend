@@ -10,12 +10,15 @@ import { ConfigModule, ConfigService } from "@nestjs/config";
 import { JwtStrategy } from "./jwt.strategy";
 import { AuthController } from "./auth.controller";
 import { LocalStrategy } from "./local.strategy";
+import { ConfirmationService } from "src/confirmation/confirmation.service";
+import { Confirmation } from "src/confirmation/confirmation.entity";
+import { ConfirmationModule } from "src/confirmation/confirmation.module";
 
 
 
 @Module({
     imports: [
-        TypeOrmModule.forFeature([User]),
+        TypeOrmModule.forFeature([User, Confirmation]),
         UserModule,
         PassportModule,
         JwtModule.registerAsync({
@@ -28,6 +31,6 @@ import { LocalStrategy } from "./local.strategy";
         })
     ],
     controllers: [AuthController],
-    providers: [AuthService, UserService, JwtStrategy, LocalStrategy]
+    providers: [AuthService, UserService, JwtStrategy, LocalStrategy, ConfirmationService]
 })
 export class AuthModule { }

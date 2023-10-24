@@ -1,7 +1,8 @@
 import { BaseEntity } from "src/base.entity";
-import { Entity, Column, BeforeInsert } from "typeorm";
+import { Entity, Column, BeforeInsert, ManyToOne } from "typeorm";
 import { UserInterface, UserStatus } from "./user.types";
 import { hash } from "bcrypt";
+import { Confirmation } from "src/confirmation/confirmation.entity";
 
 
 @Entity()
@@ -33,6 +34,9 @@ export class User extends BaseEntity implements UserInterface {
         nullable: false,
     })
     status: UserStatus;
+
+    @ManyToOne(() => Confirmation)
+    emailConfirmation: Confirmation
 
     @BeforeInsert()
     async hashPassword() {
