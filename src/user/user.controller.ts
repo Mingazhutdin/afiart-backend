@@ -3,6 +3,7 @@ import { UserService } from "./user.service";
 import { ConfigService } from "@nestjs/config";
 import { UserBody } from "./user.types";
 import { User } from "./user.entity";
+import { JwtAuthGuard } from "src/auth/jwt-auth.guard";
 
 @Controller("users")
 export class UserController {
@@ -52,5 +53,26 @@ export class UserController {
         }
         await this.userService.deleteUser(id)
         return { message: "User deleted successfully." }
+    }
+
+    @UseGuards(JwtAuthGuard)
+    @Post("confirm/:code")
+    async confirmUserEmail(
+        @Param("code")
+        code: string,
+        @Request() { user }
+    ) {
+        return await this.userService.confirmUserEmail(user.id, code)
+    }
+
+    @UseGuards(JwtAuthGuard)
+    @Post("update/email/:email")
+    async registerNewEmail(
+        @Param("email")
+        email: string,
+        @Request()
+        { user }
+    ) {
+        return await this.userService.registerNewEmail(user.id, email)
     }
 }
