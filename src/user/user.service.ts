@@ -20,7 +20,9 @@ export class UserService {
         private readonly mailService: MailerService,
     ) { }
 
+
     async findAll(): Promise<User[]> {
+        console.log("")
         return await this.userRepository.find()
     }
 
