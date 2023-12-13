@@ -1,8 +1,9 @@
 import { BaseEntity } from "src/base.entity";
-import { Entity, Column, BeforeInsert, ManyToOne } from "typeorm";
+import { Entity, Column, BeforeInsert, ManyToOne, ManyToMany, JoinTable } from "typeorm";
 import { UserInterface, UserStatus } from "./user.types";
 import { hash } from "bcrypt";
 import { Confirmation } from "src/confirmation/confirmation.entity";
+import { UserRole } from "src/userRole/userRole.entity";
 
 
 @Entity()
@@ -35,6 +36,10 @@ export class User extends BaseEntity implements UserInterface {
     })
     status: UserStatus;
 
+    @ManyToMany(() => UserRole)
+    @JoinTable()
+    roles: UserRole[]
+
     @ManyToOne(() => Confirmation)
     emailConfirmation: Confirmation
 
@@ -43,3 +48,4 @@ export class User extends BaseEntity implements UserInterface {
         this.password = await hash(this.password, 10)
     }
 }
+
