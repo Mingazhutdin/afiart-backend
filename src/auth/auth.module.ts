@@ -12,13 +12,15 @@ import { AuthController } from "./auth.controller";
 import { LocalStrategy } from "./local.strategy";
 import { ConfirmationService } from "src/confirmation/confirmation.service";
 import { Confirmation } from "src/confirmation/confirmation.entity";
-import { ConfirmationModule } from "src/confirmation/confirmation.module";
+import { UserRoleService } from "src/userRole/UserRole.service";
+import { UserRole } from "src/userRole/userRole.entity";
+
 
 
 
 @Module({
     imports: [
-        TypeOrmModule.forFeature([User, Confirmation]),
+        TypeOrmModule.forFeature([User, Confirmation, UserRole]),
         UserModule,
         PassportModule,
         JwtModule.registerAsync({
@@ -31,6 +33,6 @@ import { ConfirmationModule } from "src/confirmation/confirmation.module";
         })
     ],
     controllers: [AuthController],
-    providers: [AuthService, UserService, JwtStrategy, LocalStrategy, ConfirmationService]
+    providers: [AuthService, UserService, JwtStrategy, LocalStrategy, ConfirmationService, UserRoleService]
 })
 export class AuthModule { }

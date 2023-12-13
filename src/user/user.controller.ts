@@ -1,9 +1,12 @@
-import { Controller, Get, Post, Param, Body, UseGuards, Request, ParseUUIDPipe, Put, Delete, NotFoundException } from "@nestjs/common";
+import { Controller, Get, Post, Param, Body, UseGuards, Request, ParseUUIDPipe, Put, Patch, Delete, NotFoundException } from "@nestjs/common";
 import { UserService } from "./user.service";
 import { ConfigService } from "@nestjs/config";
-import { UserBody } from "./user.types";
+import { CreateUserInterface, UserBody } from "./user.types";
 import { User } from "./user.entity";
 import { JwtAuthGuard } from "src/auth/jwt-auth.guard";
+import { HasRoles } from "src/auth/roles.decorator";
+import { UserRoleName } from "src/userRole/userRoles.types";
+import { RolesGuard } from "src/auth/roles.guard";
 
 @Controller("users")
 export class UserController {
@@ -32,13 +35,13 @@ export class UserController {
     }
 
     @Post()
-    async createUser(@Body() body: UserBody): Promise<User> {
+    async createUser(@Body() body: CreateUserInterface): Promise<User> {
         return await this.userService.createUser(body)
     }
 
     @Put(":uuid")
     async updateUser(
-        @Param("uuid") id: string, @Body() body: UserBody
+        @Param("uuid") id: string, @Body() body: CreateUserInterface
     ): Promise<User | null> {
         return await this.userService.updateUser(id, body)
     }
@@ -73,6 +76,36 @@ export class UserController {
         @Request()
         { user }
     ) {
-        return await this.userService.registerNewEmail(user.id, email)
+        return await this.userService.registerNewUserEmail(user.id, email)
+    }
+
+    @Post("super-admin")
+    async createSuperAdmin(
+        @Body() user: UserBody
+    ) {
+        return await this.userService.createSuperAdmin(user)
+    }
+
+    @Patch("super-admin/email/:email")
+    async updateSuperAdminEmail(
+        @Param("email")
+        email: string
+    ) {
+        return this.userService.changeSuperAdminEmail(email)
+    }
+
+    @Patch("super-admin/password")
+    async resendSuperAdminPassword() {
+        return this.userService.resendSuperAdminPassword()
+    }
+
+    @HasRoles(UserRoleName.SUPER_ADMIN)
+    @UseGuards(JwtAuthGuard, RolesGuard)
+    @Patch("super-admin/confirm")
+    async confirmSuperAdmin(
+        @Request()
+        { user }
+    ) {
+        return this.userService.confirmSuperAdmin(user.id)
     }
 }
