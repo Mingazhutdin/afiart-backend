@@ -1,10 +1,10 @@
 import { Module } from "@nestjs/common";
-import { UserAndUserRoleModuleConfig } from "src/config/module.config";
+import { ModulesConfig } from "src/config/module.config";
 
 
 @Module({
-    imports: [UserAndUserRoleModuleConfig.entityImports],
+    imports: ModulesConfig?.imports,
     controllers: [],
-    providers: UserAndUserRoleModuleConfig.providers
+    providers: ModulesConfig?.providers
 })
 export class UserRoleModule { }

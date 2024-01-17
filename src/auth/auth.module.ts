@@ -1,38 +1,36 @@
-import { Module } from "@nestjs/common";
+import { Module, forwardRef } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { UserService } from "src/user/user.service";
 import { User } from "src/user/user.entity";
 import { AuthService } from "./auth.service";
 import { UserModule } from "src/user/user.module";
 import { PassportModule } from "@nestjs/passport";
-import { JwtModule } from "@nestjs/jwt";
-import { ConfigModule, ConfigService } from "@nestjs/config";
-import { JwtStrategy } from "./jwt.strategy";
-import { AuthController } from "./auth.controller";
-import { LocalStrategy } from "./local.strategy";
+import { JwtService } from "@nestjs/jwt";
+import { AccessTokenStrategy } from "./strategy/access.strategy";
 import { ConfirmationService } from "src/confirmation/confirmation.service";
 import { Confirmation } from "src/confirmation/confirmation.entity";
 import { UserRoleService } from "src/userRole/UserRole.service";
 import { UserRole } from "src/userRole/userRole.entity";
-
-
-
+import { RefreshTokenStrategy } from "./strategy/refresh.strategy";
+import { ConfirmationModule } from "src/confirmation/confirmation.module";
+import { UserRoleModule } from "src/userRole/userRole.module";
 
 @Module({
     imports: [
         TypeOrmModule.forFeature([User, Confirmation, UserRole]),
-        UserModule,
         PassportModule,
-        JwtModule.registerAsync({
-            imports: [ConfigModule],
-            useFactory: (configService: ConfigService) => ({
-                secret: configService.get<string>("JWT_SECRET"),
-                signOptions: { expiresIn: "1h" }
-            }),
-            inject: [ConfigService]
-        })
+        forwardRef(() => UserModule),
+        forwardRef(() => ConfirmationModule),
+        forwardRef(() => UserRoleModule),
     ],
-    controllers: [AuthController],
-    providers: [AuthService, UserService, JwtStrategy, LocalStrategy, ConfirmationService, UserRoleService]
+    controllers: [],
+    providers: [AuthService,
+        JwtService,
+        UserService,
+        AccessTokenStrategy,
+        RefreshTokenStrategy,
+        ConfirmationService,
+        UserRoleService],
+    exports: [AuthService]
 })
 export class AuthModule { }

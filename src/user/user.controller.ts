@@ -1,18 +1,16 @@
-import { Controller, Get, Post, Param, Body, UseGuards, Request, ParseUUIDPipe, Put, Patch, Delete, NotFoundException } from "@nestjs/common";
+import { Controller, Get, Post, Param, Body, UseGuards, Request, Patch } from "@nestjs/common";
 import { UserService } from "./user.service";
-import { ConfigService } from "@nestjs/config";
-import { CreateUserInterface, UserBody } from "./user.types";
-import { User } from "./user.entity";
-import { JwtAuthGuard } from "src/auth/jwt-auth.guard";
-import { HasRoles } from "src/auth/roles.decorator";
+import { CreateUserInterface, IUserLogin, TokenResponse, UserBody } from "./user.types";
+import { AccessTokenGuard } from "src/auth/guards/access.guard";
+import { HasRoles } from "src/auth/roleGuardAndDecorator/roles.decorator";
 import { UserRoleName } from "src/userRole/userRoles.types";
-import { RolesGuard } from "src/auth/roles.guard";
+import { RolesGuard } from "src/auth/roleGuardAndDecorator/roles.guard";
+import { RefreshTokenGuard } from "src/auth/guards/refresh.guard";
 
 @Controller("users")
 export class UserController {
     constructor(
         private readonly userService: UserService,
-        private configService: ConfigService
     ) { }
 
     @Get()
@@ -20,45 +18,34 @@ export class UserController {
         return this.userService.findAll()
     }
 
-    @Get(":uuid")
-    async findById(
-        @Param("uuid", new ParseUUIDPipe()) id: string
-    ): Promise<User | null> {
-        return await this.userService.findById(id)
-    }
-
-    @Get("byusername/:username")
-    async findByUserName(
-        @Param("username") username: string
-    ): Promise<User | null> {
-        return await this.userService.findByUserName(username)
-    }
-
-    @Post()
-    async createUser(@Body() body: CreateUserInterface): Promise<User> {
+    @Post("signup")
+    async createUser(@Body() body: CreateUserInterface): Promise<TokenResponse> {
         return await this.userService.createUser(body)
     }
 
-    @Put(":uuid")
-    async updateUser(
-        @Param("uuid") id: string, @Body() body: CreateUserInterface
-    ): Promise<User | null> {
-        return await this.userService.updateUser(id, body)
+    @Post('signin')
+    signIn(@Body() data: IUserLogin): Promise<TokenResponse> {
+        return this.userService.signIn(data);
     }
 
-    @Delete(":uuid")
-    async deleteUser(
-        @Param("uuid") id: string
-    ): Promise<any> {
-        const user = await this.userService.findById(id)
-        if (!user) {
-            throw new NotFoundException("user does not exist.")
-        }
-        await this.userService.deleteUser(id)
-        return { message: "User deleted successfully." }
+    @UseGuards(AccessTokenGuard)
+    @Get('logout')
+    logout(@Request()
+    { user }
+    ) {
+        return this.userService.logout(user.id);
     }
 
-    @UseGuards(JwtAuthGuard)
+    @Get("refresh")
+    @UseGuards(RefreshTokenGuard)
+    refreshTokens(
+        @Request()
+        { user }
+    ) {
+        return this.userService.refreshTokens(user.id, user.refreshToken)
+    }
+
+    @UseGuards(AccessTokenGuard)
     @Post("confirm/:code")
     async confirmUserEmail(
         @Param("code")
@@ -68,7 +55,7 @@ export class UserController {
         return await this.userService.confirmUserEmail(user.id, code)
     }
 
-    @UseGuards(JwtAuthGuard)
+    @UseGuards(AccessTokenGuard)
     @Post("update/email/:email")
     async registerNewEmail(
         @Param("email")
@@ -100,12 +87,22 @@ export class UserController {
     }
 
     @HasRoles(UserRoleName.SUPER_ADMIN)
-    @UseGuards(JwtAuthGuard, RolesGuard)
+    @UseGuards(AccessTokenGuard, RolesGuard)
     @Patch("super-admin/confirm")
     async confirmSuperAdmin(
         @Request()
         { user }
     ) {
         return this.userService.confirmSuperAdmin(user.id)
+    }
+
+    @HasRoles(UserRoleName.SUPER_ADMIN)
+    @UseGuards(AccessTokenGuard, RolesGuard)
+    @Patch("create-admin/:uuid")
+    async updateUserToAdminRole(
+        @Param("uuid")
+        id: string
+    ) {
+        return await this.userService.updateUserRoleToAdmin(id)
     }
 }
