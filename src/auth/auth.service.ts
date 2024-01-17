@@ -1,31 +1,40 @@
 import { Injectable } from "@nestjs/common";
-import { UserService } from "src/user/user.service";
 import { JwtService } from "@nestjs/jwt";
 import { UserInterface } from "src/user/user.types";
-import { compare } from "bcrypt";
+import { ConfigService } from "@nestjs/config";
 
 @Injectable()
 export class AuthService {
 
     constructor(
-        private userService: UserService,
-        private jwtService: JwtService
+        private jwtService: JwtService,
+        private configService: ConfigService,
     ) { }
 
-    async validateUser(username: string, password: string) {
-        const user = await this.userService.findByUserName(username)
-        const isMatch = await compare(password, user.password)
-        if (user && isMatch) {
-            const { password, ...result } = user
-            return result
-        }
-        return null;
-    }
-
-    async createToken(user: UserInterface) {
-        const payload = { username: user.username, email: user.email, id: user.id, roles: user.roles }
+    async getTokens(user: UserInterface) {
+        const [access_token, refresh_token] = await Promise.all([
+            this.jwtService.signAsync(
+                {
+                    username: user.username, email: user.email, id: user.id, roles: user.roles
+                },
+                {
+                    secret: this.configService.get<string>("JWT_SECRET"),
+                    expiresIn: "15m",
+                }
+            ),
+            this.jwtService.signAsync(
+                {
+                    username: user.username, id: user.id
+                },
+                {
+                    secret: this.configService.get<string>("REFRESH_SECRET"),
+                    expiresIn: "7d",
+                }
+            ),
+        ]);
         return {
-            access_token: this.jwtService.sign(payload)
+            access_token,
+            refresh_token,
         }
     }
 }

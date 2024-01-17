@@ -6,6 +6,7 @@ import { ConfirmationService } from "./confirmation.service";
 @Module({
     imports: [TypeOrmModule.forFeature([Confirmation])],
     controllers: [],
-    providers: [ConfirmationService]
+    providers: [Confirmation],
+    exports: [Confirmation]
 })
 export class ConfirmationModule { }

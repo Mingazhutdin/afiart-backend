@@ -35,9 +35,20 @@ export interface CreateUserInterface extends UserBody {
 export interface ResendSuperAdminPasswordModel {
     password: string
 }
+
 export enum UserStatus {
     ON_CHECK = 0,
     ACTIVE = 1,
     INACTIVE = 2,
     DELETED = 3,
+}
+
+export interface TokenResponse {
+    access_token: string;
+    refresh_token: string;
+}
+
+export interface IUserLogin {
+    username: string,
+    password: string,
 }

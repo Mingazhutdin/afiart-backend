@@ -36,6 +36,11 @@ export class User extends BaseEntity implements UserInterface {
     })
     status: UserStatus;
 
+    @Column({
+        nullable: true
+    })
+    refreshToken: string
+
     @ManyToMany(() => UserRole)
     @JoinTable()
     roles: UserRole[]

@@ -1,27 +1,29 @@
-import { Injectable, HttpException, HttpStatus } from "@nestjs/common";
+import { Injectable, HttpException, HttpStatus, Inject, forwardRef } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { InjectRepository } from "@nestjs/typeorm";
 import { User } from "./user.entity";
-import { Repository } from "typeorm";
-import { CreateUserInterface, UserBody, UserStatus } from "./user.types";
-import { hash } from "bcrypt";
+import { Repository, UpdateResult } from "typeorm";
+import { CreateUserInterface, IUserLogin, TokenResponse, UserBody, UserStatus } from "./user.types";
+import { hash, compare } from "bcrypt";
 import { ConfirmationService } from "src/confirmation/confirmation.service";
 import { MailerService } from "@nestjs-modules/mailer/dist";
 import { ConfirmationStatus } from "src/confirmation/confirmation.types";
 import { UserRoleService } from "src/userRole/UserRole.service";
 import { UserRoleName } from "src/userRole/userRoles.types";
 import { UserRole } from "src/userRole/userRole.entity";
-
+import { AuthService } from "src/auth/auth.service";
 
 @Injectable()
 export class UserService {
     constructor(
         private configService: ConfigService,
         @InjectRepository(User)
+        @Inject(forwardRef(() => UserService))
         private userRepository: Repository<User>,
         private readonly confirmationService: ConfirmationService,
         private readonly mailService: MailerService,
-        private readonly userRoleService: UserRoleService
+        private readonly userRoleService: UserRoleService,
+        private readonly authService: AuthService
     ) { }
 
 
@@ -35,7 +37,8 @@ export class UserService {
                 id
             },
             relations: {
-                emailConfirmation: true
+                emailConfirmation: true,
+                roles: true
             }
         })
     }
@@ -78,7 +81,7 @@ export class UserService {
         return userRole
     }
 
-    async createUser(body: CreateUserInterface): Promise<User> {
+    async createUser(body: CreateUserInterface): Promise<TokenResponse> {
 
         const userRole = await this.checkExistingRole(UserRoleName.USER)
         const user = this.generateUser(body)
@@ -91,10 +94,50 @@ export class UserService {
             to: user.email,
             from: this.configService.get<string>("EMAIL"),
             subject: "Confirm your email please.",
-            text: `Your confirmation code is ${emailConfirmation.code}`,
+            text: `Your confirmation code is: ${emailConfirmation.code}`,
             html: ""
         })
-        return createdUser
+        const tokens = await this.authService.getTokens(createdUser)
+        this.updateRefreshToken(createdUser.id, tokens.refresh_token)
+
+        return tokens;
+    }
+
+    async updateRefreshToken(id: string, refreshToken: string): Promise<void> {
+        const hashedToken = await hash(refreshToken, 10)
+        await this.userRepository.update(id, { refreshToken: hashedToken })
+    }
+
+    async signIn(data: IUserLogin): Promise<TokenResponse> {
+        const user = await this.findByUserName(data.username);
+        if (!user) {
+            throw new HttpException("User does not exist.", HttpStatus.NOT_FOUND);
+        }
+        const isMatch = await compare(data.password, user.password)
+        if (!isMatch) {
+            throw new HttpException("Password is incorrect.", HttpStatus.UNAUTHORIZED)
+        }
+        const tokens = await this.authService.getTokens(user);
+        await this.updateRefreshToken(user.id, tokens.refresh_token)
+        return tokens;
+    }
+
+    async logout(id: string): Promise<UpdateResult> {
+        return this.userRepository.update(id, { refreshToken: null });
+    }
+
+    async refreshTokens(id: string, refreshToken: string) {
+        const user = await this.findById(id);
+        if (!user || !user.refreshToken) {
+            throw new HttpException("Access denied.", HttpStatus.UNAUTHORIZED);
+        }
+        const isMatch = await compare(refreshToken, user.refreshToken)
+        if (!isMatch) {
+            throw new HttpException("Access denied.", HttpStatus.UNAUTHORIZED)
+        }
+        const tokens = await this.authService.getTokens(user);
+        await this.updateRefreshToken(user.id, tokens.refresh_token);
+        return tokens;
     }
 
     async confirmUserEmail(userId: string, code: string) {
@@ -113,7 +156,6 @@ export class UserService {
             }
         }
     }
-
 
     async registerNewUserEmail(userId: string, email: string) {
         const user = await this.findById(userId);
@@ -139,16 +181,7 @@ export class UserService {
     }
 
     /*TODO CHANGE UPDATE METHOD*/
-    async updateUser(id: string, body: CreateUserInterface): Promise<User> {
-        const user = new User();
-        user.fullname = body.fullname;
-        user.username = body.username;
-        user.email = body.email;
-        user.password = await hash(body.password, 10);
-        await this.userRepository.update(id, user);
-        return this.userRepository.findOne({ where: { id } })
-    }
-    /*TODO*/
+    /* TODO */
 
     async createSuperAdmin(body: UserBody) {
         const superAdminRole = await this.checkExistingRole(UserRoleName.SUPER_ADMIN)
@@ -157,11 +190,10 @@ export class UserService {
             throw new HttpException("SuperAdmin User already exist.", HttpStatus.FORBIDDEN)
         }
 
-        const superAdmin = await this.generateUser(body)
+        const superAdmin = this.generateUser(body)
         const randomPassword = (await hash(Math.random().toString(), 3)).slice(0, 8)
         superAdmin.password = randomPassword
         superAdmin.roles = [superAdminRole]
-
         const createdSuperAdmin = await this.userRepository.save(superAdmin)
 
         await this.mailService.sendMail({
@@ -171,7 +203,6 @@ export class UserService {
             text: `Your password is: ${randomPassword}, enter your password to activate your account.`,
             html: ""
         })
-
         return createdSuperAdmin
     }
 
@@ -181,7 +212,6 @@ export class UserService {
             throw new HttpException("Access denied", HttpStatus.FORBIDDEN)
         }
         return superAdminList[0]
-
     }
     /*TODO create method to change super admin email */
     async changeSuperAdminEmail(email: string) {
@@ -192,7 +222,6 @@ export class UserService {
     /*TODO  */
 
     /* TODO resent password to super admin email */
-    /*NEED TO CHECK*/
     async resendSuperAdminPassword() {
         const superAdmin = await this.findExistingOnCheckSuperAdmin()
         const password = (await hash(Math.random().toString(), 3)).slice(0, 8)
@@ -213,9 +242,24 @@ export class UserService {
         return this.findById(userId)
     }
 
-    async deleteUser(id: string): Promise<void> {
-        await this.userRepository.delete(id)
+    /*TODO create user with admin role*/
+    async updateUserRoleToAdmin(id: string): Promise<User> {
+        const adminRole = await this.checkExistingRole(UserRoleName.ADMIN);
+        const user = await this.findById(id);
+
+        if (user && adminRole) {
+            await this.userRepository
+                .createQueryBuilder()
+                .relation(User, 'roles')
+                .of(user)
+                .add(adminRole)
+            return await this.findById(id);
+        } else {
+            throw new HttpException("User or role are not found", HttpStatus.NOT_FOUND)
+
+        }
     }
+    /* TODO */
 
 
 }
